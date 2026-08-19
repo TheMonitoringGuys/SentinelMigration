@@ -1,0 +1,95 @@
+name: Tests
+
+# NOTE: as of adding this file, GitHub Actions does not execute in this repository.
+# It is a private repo owned by an Enterprise Managed User account, where Actions is
+# disabled by enterprise policy - the Actions API reports zero registered workflows and
+# zero runs, and the PR that added this file received no check runs at all.
+#
+# The workflow is kept because it is valid and will start working unchanged if the repo
+# moves to an org with Actions enabled, or the policy changes.
+#
+# Until then the REAL gate is local, and it is not optional-by-omission the way
+# "remember to run the tests" was. Install it once per clone:
+#
+#   ./tools/Install-GitHooks.ps1
+#
+# That enables a pre-push hook running this same suite, refusing the push on failure.
+#
+# The suite previously ran only when someone remembered to run it locally, which is how
+# a module with zero coverage kept six defects for several releases.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pester:
+    name: Pester (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The tool ships to Windows operators, but the modules are pure PowerShell
+        # and Linux catches accidental Windows-only assumptions (path separators,
+        # case-insensitive file lookups) far more cheaply than a customer does.
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          $existing = Get-Module -ListAvailable -Name Pester |
+              Where-Object { $_.Version -ge [version]'5.0.0' }
+          if (-not $existing) {
+              Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser -SkipPublisherCheck
+          }
+          (Get-Module -ListAvailable -Name Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = 'testResults.xml'
+          Invoke-Pester -Configuration $config
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: testResults.xml
+          if-no-files-found: warn
+
+  analyze:
+    name: PSScriptAnalyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Analyze
+        shell: pwsh
+        # Advisory for now: reported in the log and as a summary, but not failing
+        # the build. Turning warnings into errors on an existing codebase is a
+        # separate decision from getting the signal in front of a reviewer.
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error, Warning
+          if ($results) {
+              $results | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+              $errors = @($results | Where-Object { $_.Severity -eq 'Error' })
+              "### PSScriptAnalyzer: $($results.Count) finding(s), $($errors.Count) error(s)" |
+                  Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+          else {
+              '### PSScriptAnalyzer: clean' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }

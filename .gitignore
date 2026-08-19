@@ -1,0 +1,18 @@
+# Run output. Contains real workspace content — rule names and queries, full workbook
+# JSON, watchlist rows, tenant and subscription ids. Never commit it.
+output/
+
+# Local config. samples/config.yaml is the tracked template; anything else is someone's
+# real subscription and workspace names.
+config.yaml
+config.json
+testconfig.yaml
+testconfig.json
+*.local.yaml
+*.local.json
+
+# PowerShell / editor noise
+*.suo
+*.user
+.vscode/
+.idea/

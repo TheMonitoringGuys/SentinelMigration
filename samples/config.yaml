@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Sample configuration for Sentinel Migration Assistant
+# Copy this file, fill in your values, and pass with: -ConfigFile ./config.yaml
+#
+# Reading this file needs the powershell-yaml module:
+#   Install-Module -Name powershell-yaml -Scope CurrentUser
+#
+# If you cannot install modules, the same settings work as JSON — use the same
+# key names, save with a .json extension, and no extra module is needed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  subscriptionId: "00000000-0000-0000-0000-000000000000"
+  resourceGroupName: "rg-sentinel-dev"
+  workspaceName: "law-sentinel-dev"
+
+target:
+  subscriptionId: "00000000-0000-0000-0000-000000000000"
+  resourceGroupName: "rg-sentinel-prod"
+  workspaceName: "law-sentinel-prod"
+
+options:
+  # true = report only, no changes; false = perform migration
+  dryRun: true
+
+  # Azure cloud environment: Commercial | Gov
+  cloud: "Commercial"
+
+  # Overwrite rules/workbooks that already exist in target
+  overwriteExisting: false
+
+  # Migrate rules that are disabled in source (preserving disabled state)
+  createDisabledRules: false
+
+  # Feature toggles
+  migrateWorkbooks: true
+  migrateWatchlists: true
+  migrateCustomRules: true
+  migrateTemplateRules: true
+
+  # Install every Content Hub solution the source workspace has into the target,
+  # before rules are created. The target receives the current catalog version, which
+  # may be newer than the source's. A solution already present is only upgraded when
+  # overwriteExisting is also true.
+  migrateSolutions: true
+
+  # Generate manual Content Hub install checklist for solutions that cannot be auto-installed
+  generateChecklist: true
+
+  # ARM API throttling.
+  # The migration runs sequentially on purpose: ARM throttles per-subscription, so
+  # parallel writes finish no faster and produce partial-failure states that are
+  # harder to resume from. Use throttleMs to slow down, not to speed up.
+  retryCount: 3
+  throttleMs: 100
